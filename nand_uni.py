@@ -1,4 +1,4 @@
-#!/usr/init/env python3
+#!/usr/bin/env python3
 import os
 import subprocess
 import sys
@@ -192,6 +192,34 @@ def generate_truth_table_for_circuit(circ_file, circuit_name, jar_path):
             os.remove(temp_circ_path)
 
 
+def truncate_table_output(output_str, max_lines=50, tail_lines=10, hard_limit=1000):
+    """
+    Truncates table output based on length:
+    - <= 50 lines: Returns full output.
+    - 51 to 1000 lines: Keeps the first 50 and last 10 lines.
+    - > 1000 lines: Terminates early and keeps only the first 50 lines.
+    """
+    lines = output_str.splitlines()
+    total_lines = len(lines)
+
+    if total_lines <= max_lines:
+        return output_str
+
+    if total_lines > hard_limit:
+        head = lines[:max_lines]
+        notice = f"\n... [Output exceeded {hard_limit} lines ({
+            total_lines
+        } total lines). Terminated and truncated to first {max_lines} lines.] ...\n"
+        return "\n".join(head + [notice])
+
+    # Standard truncation for tables between 51 and 1000 lines
+    head = lines[:max_lines]
+    tail = lines[-tail_lines:]
+    omitted_count = total_lines - len(head) - len(tail)
+    truncation_notice = f"\n... [{omitted_count} intermediate lines truncated] ...\n"
+    return "\n".join(head + [truncation_notice] + tail)
+
+
 def main():
     print("=== Logisim-Evolution Truth Table Generator ===\n")
 
@@ -245,11 +273,11 @@ def main():
             print("=" * 55)
 
             table = generate_truth_table_for_circuit(project_file, c_name, jar_path)
-            print(
-                table
-                if table.strip()
-                else "[No table generated or circuit has 0 inputs/outputs]\n"
-            )
+            if table.strip():
+                processed_table = truncate_table_output(table)
+                print(processed_table + "\n")
+            else:
+                print("[No table generated or circuit has 0 inputs/outputs]\n")
 
         print(f"\nReport successfully saved to: {output_txt_path}")
 
