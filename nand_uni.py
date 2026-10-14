@@ -165,7 +165,7 @@ def create_temp_circ_with_main(original_circ_file, target_circuit_name):
 
 
 def generate_truth_table_for_circuit(circ_file, circuit_name, jar_path):
-    """Generates the truth table with a 30-second execution timeout."""
+    """Generates the truth table with a 60-second execution timeout."""
     temp_circ_path = None
     try:
         temp_circ_path = create_temp_circ_with_main(circ_file, circuit_name)
@@ -177,11 +177,25 @@ def generate_truth_table_for_circuit(circ_file, circuit_name, jar_path):
         )
         return result.stdout
 
-    except subprocess.TimeoutExpired:
-        error_msg = f"\n[ERROR] Truth table generation for '{
-            circuit_name
-        }' timed out after {TIMEOUT_SECONDS} seconds. Skipping circuit.\n"
-        return error_msg
+    except subprocess.TimeoutExpired as e:
+        # Decode stdout from bytes if captured as bytes due to timeout exception
+        raw_stdout = e.stdout
+        if isinstance(raw_stdout, bytes):
+            output_str = raw_stdout.decode("utf-8", errors="ignore")
+        else:
+            output_str = raw_stdout if raw_stdout else ""
+
+        lines = output_str.splitlines()
+
+        # If it exceeded 60 seconds and has more than 600 entries, print first 50 and move on
+        if len(lines) > 600:
+            head = lines[:50]
+            notice = f"\n... [Timed out after {TIMEOUT_SECONDS}s and generated {
+                len(lines)
+            } entries (>600). Truncated to first 50 entries and moving on.] ...\n"
+            return "\n".join(head + [notice])
+        else:
+            return f"\n[ERROR] Truth table generation for '{circuit_name}' timed out after {TIMEOUT_SECONDS} seconds ({len(lines)} entries generated). Skipping circuit.\n"
 
     except subprocess.CalledProcessError as e:
         return f"Error executing circuit '{circuit_name}': {e.stderr.strip()}"
